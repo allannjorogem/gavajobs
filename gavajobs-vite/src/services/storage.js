@@ -1,111 +1,61 @@
-// ═══════════════════════════════════════════════════════════
-// Storage Service — async abstraction layer
-//
-// Currently: localStorage (development)
-// Production: Replace with Supabase queries
-//
-// Every function is async and handles errors.
-// Never silently swallow failures.
-// ═══════════════════════════════════════════════════════════
-
-// ── Error wrapper ──
-async function safeGet(key, fallback) {
-  try {
-    const data = localStorage.getItem(key)
-    return data ? JSON.parse(data) : fallback
-  } catch (error) {
-    console.error(`[Storage] Failed to read ${key}:`, error)
-    return fallback
-  }
-}
-
-async function safeSet(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-    return value
-  } catch (error) {
-    console.error(`[Storage] Failed to write ${key}:`, error)
-    throw new Error(`Failed to save ${key}`)
-  }
-}
+import { supabase } from './supabase'
 
 // ── Profile ──
-// Supabase: supabase.from('profiles').select().eq('user_id', auth.uid()).single()
-export async function getProfile() {
-  return safeGet('gava_profile', null)
+
+export async function getProfile(userId) {
+  if (!userId) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) { console.error('[Storage] getProfile:', error); return null }
+  return data
 }
 
-// Supabase: supabase.from('profiles').upsert({ user_id: auth.uid(), ...profile })
-export async function saveProfile(profile) {
-  return safeSet('gava_profile', profile)
-}
-
-// ── Auth ──
-// Supabase: supabase.auth.getSession()
-export async function getAuth() {
-  return safeGet('gava_auth', null)
-}
-
-// Supabase: handled by supabase.auth.signIn/signUp/signOut
-export async function saveAuth(auth) {
-  if (auth) {
-    return safeSet('gava_auth', auth)
-  } else {
-    try { localStorage.removeItem('gava_auth') } catch {}
-    return null
-  }
+export async function saveProfile(userId, profile) {
+  if (!userId) throw new Error('Not authenticated')
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert({ ...profile, user_id: userId }, { onConflict: 'user_id' })
+    .select()
+    .maybeSingle()
+  if (error) { console.error('[Storage] saveProfile:', error); throw error }
+  return data
 }
 
 // ── Saved Jobs ──
-// Supabase: supabase.from('saved_jobs').select('job_id').eq('user_id', auth.uid())
-export async function getSavedJobs() {
-  return safeGet('gava_saved', [])
+
+export async function getSavedJobs(userId) {
+  if (!userId) return []
+  const { data, error } = await supabase
+    .from('saved_jobs')
+    .select('job_id')
+    .eq('user_id', userId)
+  if (error) { console.error('[Storage] getSavedJobs:', error); return [] }
+  return (data || []).map(r => r.job_id)
 }
 
-// Supabase: supabase.from('saved_jobs').insert/delete
-export async function saveSavedJobs(saved) {
-  return safeSet('gava_saved', saved)
+export async function saveJob(userId, jobId) {
+  if (!userId) return
+  const { error } = await supabase
+    .from('saved_jobs')
+    .insert({ user_id: userId, job_id: jobId })
+  if (error && error.code !== '23505') console.error('[Storage] saveJob:', error)
 }
 
-// ── Followed Employers ──
-// Supabase: could be a column on profiles or a separate table
-export async function getFollowedEmployers() {
-  return safeGet('gava_followed_employers', [])
-}
-
-export async function saveFollowedEmployers(employers) {
-  return safeSet('gava_followed_employers', employers)
-}
-
-// ── Premium Status ──
-// Supabase: read from profiles.premium — controlled by server, not client
-export async function getPremiumStatus() {
-  return safeGet('gava_premium', false)
-}
-
-export async function savePremiumStatus(premium) {
-  return safeSet('gava_premium', premium)
-}
-
-// ── Guest Mode ──
-export async function getGuestMode() {
-  return safeGet('gava_guest', false)
-}
-
-export async function saveGuestMode(guest) {
-  if (guest) {
-    return safeSet('gava_guest', guest)
-  } else {
-    try { localStorage.removeItem('gava_guest') } catch {}
-    return false
-  }
+export async function unsaveJob(userId, jobId) {
+  if (!userId) return
+  const { error } = await supabase
+    .from('saved_jobs')
+    .delete()
+    .eq('user_id', userId)
+    .eq('job_id', jobId)
+  if (error) console.error('[Storage] unsaveJob:', error)
 }
 
 // ── Clear All (sign out) ──
+
 export async function clearAllData() {
-  const keys = ['gava_profile', 'gava_auth', 'gava_saved',
-                'gava_followed_employers', 'gava_premium', 'gava_guest']
-  keys.forEach(k => {
-    try { localStorage.removeItem(k) } catch {}
-  })
+  await supabase.auth.signOut()
 }

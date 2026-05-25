@@ -1,14 +1,9 @@
 import { useState } from 'react'
 import { C } from '../constants/theme'
-
-// TODO (Supabase): Replace localStorage auth with:
-//   import { supabase } from '../services/supabase'
-//   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-//   const { data, error } = await supabase.auth.signUp({ email, password })
-//   const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+import { supabase } from '../services/supabase'
 
 export default function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("login") // login | register
+  const [mode, setMode] = useState("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
@@ -16,7 +11,7 @@ export default function AuthScreen({ onAuth }) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
     if (!email || !password) { setError("Please fill in all fields"); return }
@@ -24,27 +19,40 @@ export default function AuthScreen({ onAuth }) {
     if (password.length < 6) { setError("Password must be at least 6 characters"); return }
 
     setLoading(true)
-    // TODO: Backend developer — replace this with:
-    // POST /api/auth/login { email, password } → { token, profile }
-    // POST /api/auth/register { email, password, name } → { token, profile }
-    setTimeout(() => {
-      try {
-        const users = JSON.parse(localStorage.getItem("gava_users") || "{}")
-        if (mode === "register") {
-          if (users[email]) { setError("An account with this email already exists"); setLoading(false); return }
-          users[email] = { password, name, created: new Date().toISOString() }
-          localStorage.setItem("gava_users", JSON.stringify(users))
-        } else {
-          if (!users[email]) { setError("No account found with this email"); setLoading(false); return }
-          if (users[email].password !== password) { setError("Incorrect password"); setLoading(false); return }
-        }
-        localStorage.setItem("gava_auth", JSON.stringify({ email, name: users[email]?.name || name }))
-        onAuth({ email, name: users[email]?.name || name })
-      } catch {
-        setError("Something went wrong. Please try again.")
+    try {
+      if (mode === "register") {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name } }
+        })
+        if (signUpError) throw signUpError
+        onAuth(data.user)
+      } else {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInError) throw signInError
+        onAuth(data.user)
       }
-      setLoading(false)
-    }, 400)
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.")
+    }
+    setLoading(false)
+  }
+
+  const handleGoogle = async () => {
+    setError("")
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.href }
+    })
+    if (oauthError) setError(oauthError.message)
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) { setError("Enter your email address first"); return }
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
+    if (resetError) setError(resetError.message)
+    else setError("Password reset email sent — check your inbox.")
   }
 
   const inputStyle = { width:"100%", padding:"12px 14px", fontSize:15, fontFamily:"inherit", border:`1.5px solid ${C.border}`, borderRadius:10, outline:"none", color:C.text, background:C.white, transition:"border 0.2s" }
@@ -52,12 +60,10 @@ export default function AuthScreen({ onAuth }) {
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", flexDirection:"column" }}>
-      {/* Kenyan flag bar */}
       <div style={{ height:4, background:`linear-gradient(90deg,${C.black} 33%,${C.red} 33% 66%,${C.green} 66%)`, flexShrink:0 }}/>
-      
+
       <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}>
         <div style={{ width:"100%", maxWidth:420 }}>
-          {/* Logo */}
           <div style={{ textAlign:"center", marginBottom:32 }}>
             <div style={{ fontSize:36, fontWeight:800, marginBottom:6 }}>
               <span style={{ color:C.black }}>Gava</span><span style={{ color:C.red }}>Jobs</span>
@@ -68,9 +74,7 @@ export default function AuthScreen({ onAuth }) {
             </div>
           </div>
 
-          {/* Card */}
           <div style={{ background:C.white, borderRadius:16, border:`1px solid ${C.border}`, padding:"28px 24px", boxShadow:"0 4px 24px rgba(0,0,0,0.06)" }}>
-            {/* Tabs */}
             <div style={{ display:"flex", gap:0, marginBottom:24, background:C.bg, borderRadius:10, padding:3 }}>
               {["login","register"].map(m => (
                 <button key={m} onClick={() => { setMode(m); setError("") }}
@@ -83,17 +87,10 @@ export default function AuthScreen({ onAuth }) {
             </div>
 
             <form onSubmit={handleSubmit}>
-              {/* Google Sign-In */}
-              <button type="button" onClick={() => {
-                // TODO: Backend developer — implement Google OAuth:
-                // 1. Register app at console.cloud.google.com → Credentials → OAuth 2.0
-                // 2. Use Google Identity Services (GSI) library
-                // 3. On callback, POST /api/auth/google { id_token } → { token, profile }
-                // 4. Backend verifies id_token with Google, creates/finds user, returns JWT
-                setError("Google sign-in will be available when the backend is connected.")
-              }} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"11px 0", fontSize:14, fontWeight:600, fontFamily:"inherit",
-                border:`1.5px solid ${C.border}`, borderRadius:10, cursor:"pointer", background:C.white, color:C.text, marginBottom:16, transition:"background 0.2s" }}
-                onMouseEnter={e => e.target.style.background=C.bg} onMouseLeave={e => e.target.style.background=C.white}>
+              <button type="button" onClick={handleGoogle}
+                style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"11px 0", fontSize:14, fontWeight:600, fontFamily:"inherit",
+                  border:`1.5px solid ${C.border}`, borderRadius:10, cursor:"pointer", background:C.white, color:C.text, marginBottom:16, transition:"background 0.2s" }}
+                onMouseEnter={e => e.currentTarget.style.background=C.bg} onMouseLeave={e => e.currentTarget.style.background=C.white}>
                 <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                 Continue with Google
               </button>
@@ -144,14 +141,13 @@ export default function AuthScreen({ onAuth }) {
 
             {mode === "login" && (
               <div style={{ textAlign:"center", marginTop:16 }}>
-                <button onClick={() => {}} style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:13, color:C.text3, textDecoration:"underline" }}>
+                <button onClick={handleForgotPassword} style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:13, color:C.text3, textDecoration:"underline" }}>
                   Forgot password?
                 </button>
               </div>
             )}
           </div>
 
-          {/* Footer note */}
           <div style={{ textAlign:"center", marginTop:20, fontSize:12, color:C.text3, lineHeight:1.6 }}>
             By continuing you agree to GavaJobs Terms of Service.<br/>
             GavaJobs is not an official Government of Kenya website.
@@ -161,4 +157,3 @@ export default function AuthScreen({ onAuth }) {
     </div>
   )
 }
-
