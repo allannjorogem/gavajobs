@@ -34,6 +34,17 @@ export default function App() {
   const [showSaved, setShowSaved] = useState(false)
   const [guest, setGuest] = useStore("gava_guest", false)
 
+  // ── AUTH SESSION LISTENER ──
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setAuth(session.user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuth(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   // ── JOBS FROM SUPABASE ──
   const [jobs, setJobs] = useState([])
   const [jobsLoading, setJobsLoading] = useState(true)
