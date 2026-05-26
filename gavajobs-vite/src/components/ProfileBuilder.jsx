@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { C } from '../constants/theme'
-import { dl, isManagement, matchColor } from '../utils/helpers'
+import { dl, matchColor } from '../utils/helpers'
+import { isManagement } from '../services/matchingEngine'
 import { EDU_LEVELS, EDU_RANK, LEADERSHIP_COURSES, SKILLS } from '../constants/education'
 import { FIELD_PILLS } from '../constants/fieldPills'
 import { PROF_QUALS } from '../constants/profQuals'
