@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { supabase } from '../services/supabase'
 import { PROF_QUALS } from '../constants/profQuals'
 import { PROF_BODIES } from '../constants/profBodies'
 import { FIELD_PILLS } from '../constants/fieldPills'
@@ -634,35 +635,48 @@ export default function Admin() {
   const [selected, setSelected] = useState(new Set())
   const [importData, setImportData] = useState(null)
 
-  // Load from persistent storage after mount
+  // Load from Supabase
   useEffect(() => {
     (async () => {
       try {
-        const r = await window.storage.get("gava_admin_jobs")
-        if (r && r.value) setJobs(JSON.parse(r.value))
-      } catch {
-        try {
-          const s = localStorage.getItem("gava_admin_v3")
-          if (s) setJobs(JSON.parse(s))
-        } catch {}
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .order('added_date', { ascending: false })
+        if (error) throw error
+        const mapped = (data || []).map(j => ({
+          id: j.display_id,
+          _supabase_id: j.id,
+          src: j.source,
+          isNew: j.is_new,
+          open: j.status === 'published',
+          status: j.status,
+          deadline: j.deadline,
+          addedDate: j.added_date,
+          title: j.title,
+          employer: j.employer,
+          sector: j.sector,
+          county: j.county,
+          edu: j.edu_min,
+          posts: j.posts,
+          grade: j.grade || '',
+          ref: j.ref || '',
+          flag: j.flag || '',
+          about: j.about,
+          responsibilities: j.responsibilities || [],
+          requirements: j.requirements || [],
+          howToApply: j.how_to_apply,
+          chapterSix: j.chapter_six,
+          ai_summary: j.ai_summary || '',
+          ai_match_fields: j.ai_match_fields || {},
+        }))
+        setJobs(mapped)
+      } catch (err) {
+        console.error('[Admin] Failed to load jobs:', err)
       }
       setLoading(false)
     })()
   }, [])
-
-  // Debounced save — wait 1s after last change
-  useEffect(() => {
-    if (loading) return
-    const timer = setTimeout(async () => {
-      try {
-        const data = JSON.stringify(jobs)
-        await window.storage.set("gava_admin_jobs", data)
-      } catch {
-        try { localStorage.setItem("gava_admin_v3", JSON.stringify(jobs)) } catch {}
-      }
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [jobs, loading])
 
   useEffect(() => {
     const today = new Date()
@@ -749,28 +763,72 @@ export default function Admin() {
     else { setSortCol(col); setSortDir("asc") }
   }
 
-  const saveJob = (job) => {
+  const saveJob = async (job) => {
     if (!job.id || !job.title || !job.employer || !job.deadline) {
       alert("Fill in: ID, Title, Employer, Deadline"); return
     }
-    setJobs(prev => {
-      const idx = prev.findIndex(j => j.id === job.id)
-      if (idx >= 0) { const a = [...prev]; a[idx] = job; return a }
-      return [...prev, job]
-    })
-    setView("list"); setEditJob(null)
+    // Map admin job format to Supabase columns
+    const row = {
+      display_id: job.id,
+      source: job.src || 'MyGov',
+      is_new: job.isNew !== false,
+      status: job.status || 'draft',
+      deadline: job.deadline,
+      added_date: job.addedDate || new Date().toISOString().split('T')[0],
+      title: job.title,
+      employer: job.employer,
+      sector: job.sector || 'Other',
+      county: job.county || 'Nairobi',
+      edu_min: job.edu || 'Degree',
+      posts: job.posts || 1,
+      grade: job.grade || '',
+      ref: job.ref || '',
+      flag: job.flag || '',
+      about: job.about || '',
+      responsibilities: job.responsibilities || [],
+      requirements: job.requirements || [],
+      how_to_apply: job.howToApply || '',
+      chapter_six: job.chapterSix !== false,
+      ai_summary: job.ai_summary || '',
+      ai_match_fields: job.ai_match_fields || {},
+    }
+    try {
+      if (job._supabase_id) {
+        // Update existing
+        const { error } = await supabase.from('jobs').update(row).eq('id', job._supabase_id)
+        if (error) throw error
+      } else {
+        // Insert new
+        const { data, error } = await supabase.from('jobs').insert(row).select().single()
+        if (error) throw error
+        job._supabase_id = data.id
+      }
+      setJobs(prev => {
+        const idx = prev.findIndex(j => j.id === job.id)
+        if (idx >= 0) { const a = [...prev]; a[idx] = job; return a }
+        return [...prev, job]
+      })
+      setView("list"); setEditJob(null)
+    } catch (err) {
+      alert('Failed to save job: ' + err.message)
+    }
   }
 
-  const deleteJob = (id) => {
+  const deleteJob = async (id) => {
+    const job = jobs.find(j => j.id === id)
+    if (job?._supabase_id) {
+      const { error } = await supabase.from('jobs').delete().eq('id', job._supabase_id)
+      if (error) { alert('Failed to delete: ' + error.message); return }
+    }
     setJobs(prev => prev.filter(j => j.id !== id))
     setView("list"); setEditJob(null)
   }
 
-  const purgeAll = () => {
-    if (safeConfirm("Delete ALL jobs?")) {
+  const purgeAll = async () => {
+    if (safeConfirm("Delete ALL jobs from the database? This cannot be undone.")) {
+      const { error } = await supabase.from('jobs').delete().neq('id', 0)
+      if (error) { alert('Failed to purge: ' + error.message); return }
       setJobs([]); setSelected(new Set())
-      try { window.storage.delete("gava_admin_jobs") } catch {}
-      try { localStorage.removeItem("gava_admin_v3") } catch {}
     }
   }
 
