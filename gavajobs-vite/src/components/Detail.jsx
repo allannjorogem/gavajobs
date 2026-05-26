@@ -57,30 +57,6 @@ export default function Detail({ job, saved, onSave, onClose, profile, onBuildPr
           ))}
         </div>
 
-        {/* Closing soon */}
-        {closingSoon.length > 0 && (
-          <div style={{ padding:"0 24px 32px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:14 }}>
-              <span style={{ fontSize:14 }}>⏰</span>
-              <span style={{ fontSize:11, fontWeight:700, color:C.red, textTransform:"uppercase", letterSpacing:".04em" }}>Closing soon</span>
-            </div>
-            {closingSoon.slice(0, 5).map(j => {
-              const d = dl(j.deadline)
-              return (
-                <div key={j.id} onClick={() => onSelect && onSelect(j)} style={{ display:"flex", gap:12, alignItems:"center", padding:"12px 14px", background:d.urgent?C.redSoft:C.white, border:`1px solid ${d.urgent?C.red+"30":C.border}`, borderRadius:10, marginBottom:8, cursor:"pointer" }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.title}</div>
-                    <div style={{ fontSize:11, color:C.text2 }}>{j.employer.split("(")[0].trim()}</div>
-                  </div>
-                  <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:d.urgent?C.red:d.color }}>{d.text}</div>
-                    {j.posts > 1 && <div style={{ fontSize:10, color:C.text3, marginTop:2 }}>{j.posts} posts</div>}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
     )
   }
