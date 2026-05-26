@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import ScoreRing from './ScoreRing'
-import { ALL_JOBS } from '../constants/jobs'
 import { C } from '../constants/theme'
 import { computeMatch, isManagement } from '../services/matchingEngine'
 import { matchColor, matchLabel, dl, ini, waShare } from '../utils/helpers'
@@ -16,16 +15,6 @@ export default function Detail({ job, saved, onSave, onClose, profile, onBuildPr
   
   if (!job) {
     const now = new Date()
-    const openCount = ALL_JOBS.filter(j => j.open && new Date(j.deadline+"T17:00:00+03:00") >= now).length
-    const closingSoon = ALL_JOBS.filter(j => {
-      if (!j.open) return false
-      const deadlineTime = new Date(j.deadline+"T17:00:00+03:00")
-      const now2 = new Date()
-      if (now2 > deadlineTime) return false
-      const diff = Math.ceil((deadlineTime - now2) / 864e5)
-      return diff <= 14
-    }).sort((a,b) => new Date(a.deadline) - new Date(b.deadline))
-    const employerCount = new Set(ALL_JOBS.filter(j=>j.open && new Date(j.deadline+"T17:00:00+03:00") >= now).map(j=>j.employer)).size
 
     return (
       <div style={{ display:"flex", flexDirection:"column", height:"100%", overflowY:"auto", scrollbarWidth:"thin" }}>
@@ -49,22 +38,7 @@ export default function Detail({ job, saved, onSave, onClose, profile, onBuildPr
           )}
         </div>
 
-        {/* Stats bar */}
-        <div style={{ display:"flex", justifyContent:"center", gap:0, margin:"0 20px 28px", background:C.white, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden" }}>
-          <div style={{ flex:1, padding:"14px 8px", textAlign:"center", borderRight:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:22, fontWeight:800, color:C.green }}>{openCount}</div>
-            <div style={{ fontSize:10, fontWeight:600, color:C.text3, textTransform:"uppercase", letterSpacing:".04em" }}>Open jobs</div>
-          </div>
-          <div style={{ flex:1, padding:"14px 8px", textAlign:"center", borderRight:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:22, fontWeight:800, color:C.text }}>{employerCount}</div>
-            <div style={{ fontSize:10, fontWeight:600, color:C.text3, textTransform:"uppercase", letterSpacing:".04em" }}>Employers</div>
-          </div>
-          <div style={{ flex:1, padding:"14px 8px", textAlign:"center" }}>
-            <div style={{ fontSize:22, fontWeight:800, color:C.text }}>7</div>
-            <div style={{ fontSize:10, fontWeight:600, color:C.text3, textTransform:"uppercase", letterSpacing:".04em" }}>Match checks</div>
-          </div>
-        </div>
-
+        
         {/* How it works */}
         <div style={{ padding:"0 24px 28px" }}>
           <p style={{ fontSize:11, fontWeight:700, color:C.text3, textTransform:"uppercase", letterSpacing:".05em", marginBottom:14 }}>How it works</p>
