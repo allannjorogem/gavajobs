@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import ScoreRing from './components/ScoreRing'
 import { C } from './constants/theme'
 import { EDU_LEVELS, EDU_RANK } from './constants/education'
 import { SECTORS } from './constants/sectors'
