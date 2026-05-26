@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { C } from '../constants/theme'
 import { EDU_LEVELS, EDU_RANK, LEADERSHIP_COURSES, SKILLS } from '../constants/education'
 import { FIELD_PILLS } from '../constants/fieldPills'
