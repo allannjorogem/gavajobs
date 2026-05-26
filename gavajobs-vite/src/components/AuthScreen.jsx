@@ -12,6 +12,15 @@ export default function AuthScreen({ onAuth }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
 
+  const handleGoogle = async () => {
+    setError("")
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+    if (error) setError(error.message)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(""); setMessage("")
