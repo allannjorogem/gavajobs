@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import ScoreRing from './ScoreRing'
 import { C } from '../constants/theme'
 import { dl, matchColor } from '../utils/helpers'
 import { isManagement } from '../services/matchingEngine'
