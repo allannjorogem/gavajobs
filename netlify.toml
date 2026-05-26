@@ -1,7 +1,8 @@
 [build]
   base = "gavajobs-vite"
   command = "npm install && npm run build"
-  publish = "dist"
-
+  publish = "gavajobs-vite/dist"
+ 
 [build.environment]
   NODE_VERSION = "20"
+ 
