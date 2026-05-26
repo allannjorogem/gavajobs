@@ -7,13 +7,13 @@ import { SECTORS } from './constants/sectors'
 import { FIELD_PILLS } from './constants/fieldPills'
 import { PROF_QUALS } from './constants/profQuals'
 import { PROF_BODIES } from './constants/profBodies'
-import { ALL_JOBS } from './constants/jobs'
 import { computeMatch, isManagement, jobSeniority } from './services/matchingEngine'
 import { matchColor, matchLabel, dl, ini } from './utils/helpers'
 import { useStore } from './hooks/useStore'
 import ProfileBuilder from './components/ProfileBuilder'
 import Detail from './components/Detail'
 import AuthScreen from './components/AuthScreen'
+import { supabase } from './services/supabase'
 
 export default function App() {
   const [auth, setAuth] = useStore("gava_auth", null)
@@ -32,24 +32,68 @@ export default function App() {
   const [sortBy, setSortBy] = useState("match")
   const [showProfileBuilder, setShowProfileBuilder] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
-
-  // ── AUTH GATE ──
   const [guest, setGuest] = useStore("gava_guest", false)
-  
+
+  // ── JOBS FROM SUPABASE ──
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchJobs() {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('status', 'published')
+          .order('added_date', { ascending: false })
+        if (error) throw error
+        // Map Supabase snake_case columns to camelCase expected by the app
+        const mapped = (data || []).map(j => ({
+          id: j.display_id,
+          src: j.source,
+          isNew: j.is_new,
+          open: j.status === 'published',
+          deadline: j.deadline,
+          addedDate: j.added_date,
+          title: j.title,
+          employer: j.employer,
+          sector: j.sector,
+          county: j.county,
+          edu: j.edu_min,
+          posts: j.posts,
+          grade: j.grade,
+          ref: j.ref,
+          flag: j.flag,
+          about: j.about,
+          responsibilities: j.responsibilities || [],
+          requirements: j.requirements || [],
+          howToApply: j.how_to_apply,
+          chapterSix: j.chapter_six,
+          ai_summary: j.ai_summary,
+          ai_match_fields: j.ai_match_fields,
+        }))
+        setJobs(mapped)
+      } catch (err) {
+        console.error('[GavaJobs] Failed to fetch jobs:', err)
+        setJobs([])
+      } finally {
+        setJobsLoading(false)
+      }
+    }
+    fetchJobs()
+  }, [])
+
   const toggleSave = useCallback(id => setSaved(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]), [])
   const toggleFollow = useCallback(emp => setFollowedEmps(p => p.includes(emp) ? p.filter(x=>x!==emp) : [...p, emp]), [])
   const select = useCallback(job => { setSelected(job); setMobOpen(true) }, [])
 
-  // ── MATCH CACHE: compute once per profile change, reuse everywhere ──
-  // Deferred: on first load, render the list WITHOUT scores first (fast paint),
-  // then compute matches in a microtask so the UI isn't blocked.
+  // ── MATCH CACHE ──
   const [matchCache, setMatchCache] = useState({})
   useEffect(() => {
-    if (!profile) { setMatchCache({}); return }
-    // Use requestAnimationFrame to yield to the browser before heavy computation
+    if (!profile || jobs.length === 0) { setMatchCache({}); return }
     const raf = requestAnimationFrame(() => {
       const cache = {}
-      ALL_JOBS.forEach(j => {
+      jobs.forEach(j => {
         if (j.ai_match_fields) {
           cache[j.id] = computeMatch(profile, j.ai_match_fields)
         }
@@ -57,25 +101,26 @@ export default function App() {
       setMatchCache(cache)
     })
     return () => cancelAnimationFrame(raf)
-  }, [profile])
+  }, [profile, jobs])
 
   const getMatch = useCallback((jobId) => matchCache[jobId] || null, [matchCache])
 
-  // Pre-compute search index — deferred to avoid blocking first paint
+  // ── SEARCH INDEX ──
   const [searchIndex, setSearchIndex] = useState([])
   useEffect(() => {
+    if (jobs.length === 0) return
     const raf = requestAnimationFrame(() => {
-      setSearchIndex(ALL_JOBS.map(j => ({
+      setSearchIndex(jobs.map(j => ({
         id: j.id,
         text: [j.title, j.employer, j.about||"", j.ai_summary||"", j.county||""].join(" ").toLowerCase(),
         deadlineTs: new Date(j.deadline||"2099-12-31").getTime(),
       })))
     })
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [jobs])
 
   const filtered = useMemo(() => {
-    let base = showSaved ? ALL_JOBS.filter(j => saved.includes(j.id)) : ALL_JOBS
+    let base = showSaved ? jobs.filter(j => saved.includes(j.id)) : jobs
     const ql = q ? q.toLowerCase() : ""
     let f = base.filter(j => {
       if (sector !== "All" && j.sector !== sector) return false
@@ -84,13 +129,10 @@ export default function App() {
           const idx = searchIndex.find(s => s.id === j.id)
           if (!idx || !idx.text.includes(ql)) return false
         } else {
-          // Fallback before index loads: check title + employer only
           const fallback = (j.title + " " + j.employer).toLowerCase()
           if (!fallback.includes(ql)) return false
         }
       }
-      // Don't filter closed jobs here — let isJobOpen handle the split for rendering
-      // This ensures closedJobs count is always accurate for the toggle button
       if (showMgmt && !isManagement(j.title)) return false
       return true
     })
@@ -102,19 +144,15 @@ export default function App() {
         const sa = matchA?.score || 0
         const sb = matchB?.score || 0
         if (sb !== sa) return sb - sa
-        // Tiebreaker 1: followed employers first
         const fA = fe.has(a.employer) ? 1 : 0
         const fB = fe.has(b.employer) ? 1 : 0
         if (fB !== fA) return fB - fA
-        // Tiebreaker 2: seniority of role (higher = more senior)
         const senA = jobSeniority(a)
         const senB = jobSeniority(b)
         if (senB !== senA) return senB - senA
-        // Tiebreaker 3: experience required (proxy for seniority when titles are ambiguous)
         const expA = a.ai_match_fields?.years_experience || 0
         const expB = b.ai_match_fields?.years_experience || 0
         if (expB !== expA) return expB - expA
-        // Tiebreaker 4: checks met
         const metA = matchA?.metCount || 0
         const metB = matchB?.metCount || 0
         if (metB !== metA) return metB - metA
@@ -125,16 +163,13 @@ export default function App() {
       searchIndex.forEach(s => tsMap[s.id] = s.deadlineTs)
       f.sort((a,b) => (tsMap[a.id]||0) - (tsMap[b.id]||0))
     } else {
-      // Newest first — furthest deadline = most recently posted
       const tsMap = {}
       searchIndex.forEach(s => tsMap[s.id] = s.deadlineTs)
       f.sort((a,b) => (tsMap[b.id]||0) - (tsMap[a.id]||0))
     }
     return f
-  }, [sector, q, showClosed, showMgmt, sortBy, profile, showSaved, saved, getMatch, searchIndex])
+  }, [sector, q, showClosed, showMgmt, sortBy, profile, showSaved, saved, getMatch, searchIndex, jobs])
 
-  // A job is truly open only if j.open is true AND its deadline hasn't passed
-  // Government jobs close at 5pm EAT (14:00 UTC) on the deadline date
   const isJobOpen = useCallback(j => {
     if (!j.open) return false
     const deadline = new Date(j.deadline + "T17:00:00+03:00")
@@ -144,13 +179,12 @@ export default function App() {
   const openJobs = useMemo(() => filtered.filter(j => isJobOpen(j)), [filtered, isJobOpen])
   const closedJobs = useMemo(() => filtered.filter(j => !isJobOpen(j)), [filtered, isJobOpen])
   
-  // When user has a profile, split open jobs into relevant (>15%) and irrelevant (0-15%)
   const [showLowMatches, setShowLowMatches] = useState(false)
   const relevantJobs = useMemo(() => {
     if (!profile) return openJobs
     return openJobs.filter(j => {
       const m = getMatch(j.id)
-      if (!m) return true // unscored jobs stay visible
+      if (!m) return true
       return m.score > 15
     })
   }, [openJobs, profile, getMatch])
@@ -163,7 +197,6 @@ export default function App() {
   }, [openJobs, profile, getMatch])
   useEffect(() => { setVisibleCount(12) }, [sector, q, sortBy, showSaved, showMgmt])
 
-  // ── AUTH: no gate — everyone can browse. Login shown as modal when needed ──
   const [showAuth, setShowAuth] = useState(false)
 
   return (
@@ -196,26 +229,22 @@ export default function App() {
             {q && <button onClick={()=>setQ("")} style={{ background:"none", border:"none", cursor:"pointer", color:C.text3 }}>✕</button>}
           </div>
           
-          {/* Profile Builder button — shows auth if not signed in */}
           <button onClick={() => auth ? setShowProfileBuilder(true) : setShowAuth(true)} style={{ display:"flex", alignItems:"center", gap:4, background:profile?C.greenSoft:C.redSoft, border:`1.5px solid ${profile?C.green:C.red}`, borderRadius:8, padding:"7px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:600, color:profile?C.green:C.red, flexShrink:0, whiteSpace:"nowrap" }}>
             {profile ? "✓ Profile" : "Profile"}
           </button>
           
-          {/* Saved Jobs — icon only on mobile, label on desktop */}
           <button onClick={() => setShowSaved(p=>!p)} style={{ display:"flex", alignItems:"center", gap:4, position:"relative", background:showSaved?C.redSoft:"none", border:showSaved?`1.5px solid ${C.red}`:`1.5px solid ${C.border}`, borderRadius:8, padding:"7px 8px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:500, color:showSaved?C.red:C.text2, flexShrink:0 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill={showSaved?"currentColor":"none"}><path d="M8 12L3 15V3a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v12l-5-3z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
             <span className="desk-only">Saved</span>
             {saved.length > 0 && <span style={{ background:C.red, color:C.white, fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:10 }}>{saved.length}</span>}
           </button>
 
-          {/* Premium toggle */}
           {profile && (
             <button onClick={() => setPremium(p => !p)} style={{ display:"flex", alignItems:"center", gap:3, background:premium?"#FEF3C7":"none", border:`1px solid ${premium?"#F59E0B":C.border}`, borderRadius:8, padding:"7px 8px", cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:premium?"#92400E":C.text3, flexShrink:0 }}>
               {premium ? "★ Pro" : "☆ Go Pro"}
             </button>
           )}
 
-          {/* Auth buttons */}
           {auth ? (
             <button onClick={() => {
                 setProfile(null); setSaved([]); setFollowedEmps([]); setPremium(false); setSelected(null); setShowSaved(false); setAuth(null); setGuest(false)
@@ -257,8 +286,13 @@ export default function App() {
           }
         }} style={{ width:420, flexShrink:0, overflowY:"auto", borderRight:`1px solid ${C.border}`, padding:"12px 12px 80px", scrollbarWidth:"thin" }}>
           
-          {/* Profile nudge if not built */}
-          {!profile && (
+          {jobsLoading && (
+            <div style={{ textAlign:"center", padding:"40px 16px", color:C.text3, fontSize:13 }}>
+              Loading jobs…
+            </div>
+          )}
+
+          {!profile && !jobsLoading && (
             <div onClick={() => setShowProfileBuilder(true)} style={{ display:"flex", alignItems:"center", gap:10, background:C.white, border:`1.5px dashed ${C.red}`, borderRadius:10, padding:"12px 14px", marginBottom:14, cursor:"pointer" }}>
               <ScoreRing score={0} size={36} locked={true}/>
               <div style={{ flex:1 }}>
@@ -269,7 +303,7 @@ export default function App() {
             </div>
           )}
           
-          {relevantJobs.length > 0 && (
+          {!jobsLoading && relevantJobs.length > 0 && (
             <>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4, padding:"0 2px" }}>
                 <span style={{ fontSize:11, fontWeight:700, color:C.text2, textTransform:"uppercase", letterSpacing:".05em" }}>{showSaved?"Saved":"Active jobs"}</span>
@@ -280,7 +314,7 @@ export default function App() {
             </>
           )}
           
-          {!showSaved && lowMatchJobs.length > 0 && (
+          {!jobsLoading && !showSaved && lowMatchJobs.length > 0 && (
             <button onClick={() => setShowLowMatches(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
               <span>{showLowMatches ? "▲ Hide low matches" : "▼ Jobs outside your field"}</span>
               <span style={{ fontSize:10, fontWeight:600, background:C.borderLight, padding:"1px 6px", borderRadius:8 }}>{lowMatchJobs.length}</span>
@@ -288,7 +322,7 @@ export default function App() {
           )}
           {showLowMatches && lowMatchJobs.map(j => <JobCard key={j.id} job={j} active={selected?.id===j.id} saved={saved} onSave={toggleSave} onSelect={select} match={getMatch(j.id)} followed={!!profile && followedEmps.includes(j.employer)}/>)}
           
-          {!showSaved && (
+          {!jobsLoading && !showSaved && (
             <button onClick={() => setShowClosed(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
               <span>{showClosed ? "▲ Hide closed" : "▼ Closed jobs"}</span>
               <span style={{ fontSize:10, fontWeight:600, background:C.borderLight, padding:"1px 6px", borderRadius:8 }}>{closedJobs.length}</span>
@@ -296,7 +330,7 @@ export default function App() {
           )}
           {showClosed && closedJobs.map(j => <JobCard key={j.id} job={j} active={selected?.id===j.id} saved={saved} onSave={toggleSave} onSelect={select} match={getMatch(j.id)} followed={!!profile && followedEmps.includes(j.employer)}/>)}
           
-          {filtered.length === 0 && (
+          {!jobsLoading && filtered.length === 0 && (
             <div style={{ textAlign:"center", padding:"40px 16px" }}>
               <div style={{ fontSize:32, opacity:.4, marginBottom:10 }}>🔍</div>
               <p style={{ fontWeight:600, color:C.text }}>No jobs found</p>
@@ -313,7 +347,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Mobile detail sheet */}
       {mobOpen && selected && (
         <div onClick={() => setMobOpen(false)} className="mob-sheet" style={{ display:"none", position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,.45)" }}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:0, left:0, right:0, height:"92vh", borderRadius:"18px 18px 0 0", background:C.white, padding:"18px 16px 0", overflowY:"auto", animation:"slideUp .25s ease" }}>
@@ -322,12 +355,10 @@ export default function App() {
         </div>
       )}
       
-      {/* Profile Builder Modal */}
       {showProfileBuilder && (
         <ProfileBuilder profile={profile} setProfile={setProfile} onClose={() => setShowProfileBuilder(false)}/>
       )}
 
-      {/* Auth Modal — overlays the main app */}
       {showAuth && (
         <div style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
           onClick={e => { if (e.target === e.currentTarget) setShowAuth(false) }}>
@@ -344,5 +375,3 @@ export default function App() {
     </div>
   )
 }
-
-
