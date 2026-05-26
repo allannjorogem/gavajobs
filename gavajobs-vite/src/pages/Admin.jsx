@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { EDU_RANK } from '../constants/education'
 import { PROF_QUALS } from '../constants/profQuals'
 import { PROF_BODIES } from '../constants/profBodies'
 import { FIELD_PILLS } from '../constants/fieldPills'
