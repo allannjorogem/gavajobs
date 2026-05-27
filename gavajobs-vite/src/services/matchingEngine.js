@@ -136,6 +136,10 @@ export function computeMatch(profile, jobFields) {
       
       if (!lc.has) {
         const hasLevel = (lc.lv === "PhD" && userEduRank >= 5) || (lc.lv === "Masters" && userEduRank >= 4) || (lc.lv === "Bachelors" && userEduRank >= 3) || (lc.lv === "Degree" && userEduRank >= 3) || (lc.lv === "Diploma" && userEduRank >= 2)
+        // No fields recorded at this level — but check allUserFields to avoid false wrongField.
+        // e.g. Degree holder has no Masters fields, but their Degree field matches the job → not a wrong field.
+        const fieldMatchResult = tryMatch(allUserFields, lc.jf)
+        if (fieldMatchResult.tier !== "none") anyFieldMatch = true
         checks.push({ label: lc.lv + " in " + fDisp, met: false, category: "field", weight: lc.w, maxWeight: lc.w,
           note: hasLevel ? "No " + lc.lv.toLowerCase() + "-level field recorded in your profile." : "You do not hold a " + lc.lv + "." })
         continue
