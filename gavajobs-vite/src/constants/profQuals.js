@@ -1,4 +1,4 @@
-// Professional qualifications — 29 entries
+// Professional qualifications — 30 entries
 export const PROF_QUALS = [
   { id:"acca", label:"ACCA", category:"Accounting" },
   { id:"advocate", label:"Advocate of the High Court", category:"Legal" },
@@ -27,6 +27,7 @@ export const PROF_QUALS = [
   { id:"azure", label:"Microsoft Azure Certification", category:"ICT" },
   { id:"pmp", label:"PMP (Project Management Professional)", category:"Management" },
   { id:"pgdl", label:"Post Graduate Diploma in Law (KSL)", category:"Legal" },
+  { id:"pgdhrm", label:"PGDHRM (Post Graduate Diploma in Human Resource Management)", category:"HR" },
   { id:"prince2", label:"PRINCE2", category:"Management" },
   { id:"supplies_licence", label:"Supplies Practitioner's Licence (KISM)", category:"Supply Chain" },
 ]
