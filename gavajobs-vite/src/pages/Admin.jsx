@@ -725,7 +725,14 @@ export default function Admin() {
       }
       return j
     })
-    if (changed) setJobs(updated)
+    if (changed) {
+      setJobs(updated)
+      // Write expired isNew flags to Supabase
+      const expired = updated.filter(j => !j.isNew && jobs.find(o => o.id === j.id)?.isNew)
+      for (const j of expired) {
+        if (j._supabase_id) await supabase.from('jobs').update({ is_new: false }).eq('id', j._supabase_id)
+      }
+    }
   }, [])
 
   const now = new Date()
@@ -954,6 +961,10 @@ export default function Admin() {
       const reNw = nw.map((j, i) => ({ ...j, id: 'myg_' + String(maxNum + 1 + i).padStart(3, '0'), status: 'draft' }))
 
       for (const j of reNw) {
+        // Deduplication check — skip if employer+title+deadline already exists in Supabase
+        const { data: existing } = await supabase.from('jobs')
+          .select('id').eq('employer', j.employer).eq('title', j.title).eq('deadline', j.deadline).limit(1)
+        if (existing && existing.length > 0) { console.warn('Skipping duplicate:', j.title); continue }
         const { error } = await supabase.from('jobs').insert(toRow(j))
         if (error) throw error
       }
@@ -996,15 +1007,27 @@ export default function Admin() {
     const ids = filtered.map(j => j.id)
     setSelected(ids.every(id => selected.has(id)) ? new Set() : new Set(ids))
   }
-  const bulkClose = () => {
-    setJobs(p => p.map(j => selected.has(j.id) ? { ...j, status:"unpublished" } : j))
+  const bulkUpdateStatus = async (status) => {
+    const ids = [...selected]
+    for (const displayId of ids) {
+      const job = jobs.find(j => j.id === displayId)
+      if (job?._supabase_id) {
+        await supabase.from('jobs').update({ status }).eq('id', job._supabase_id)
+      }
+    }
+    setJobs(p => p.map(j => selected.has(j.id) ? { ...j, status } : j))
     setSelected(new Set())
   }
-  const bulkPublish = () => {
-    setJobs(p => p.map(j => selected.has(j.id) ? { ...j, status:"published" } : j))
-    setSelected(new Set())
-  }
-  const bulkUnNew = () => {
+  const bulkClose = () => bulkUpdateStatus('unpublished')
+  const bulkPublish = () => bulkUpdateStatus('published')
+  const bulkUnNew = async () => {
+    const ids = [...selected]
+    for (const displayId of ids) {
+      const job = jobs.find(j => j.id === displayId)
+      if (job?._supabase_id) {
+        await supabase.from('jobs').update({ is_new: false }).eq('id', job._supabase_id)
+      }
+    }
     setJobs(p => p.map(j => selected.has(j.id) ? { ...j, isNew:false } : j))
     setSelected(new Set())
   }
