@@ -193,7 +193,7 @@ function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
   // No match = NEW (admin auto-assigns ID from highest existing).
   const em = {}
   existing.forEach(j => { em[`${j.employer}|${j.title}|${j.deadline}`] = j })
-  const nw = [], up = []
+  const nw = [], up = [], sk = []
   incoming.forEach(j => {
     const k = `${j.employer}|${j.title}|${j.deadline}`
     const match = em[k]
