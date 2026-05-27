@@ -187,17 +187,18 @@ function Field({ label, children, hint, required }) {
 }
 
 function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
+  // Match by employer+title+deadline — NOT by ID.
   const em = {}
-  existing.forEach(j => { em[j.id] = j })
-  const ek = new Set(existing.map(j =>
-    `${j.employer}|${j.title}|${j.deadline}`
-  ))
+  existing.forEach(j => { em[`${j.employer}|${j.title}|${j.deadline}`] = j })
   const nw = [], up = [], sk = []
   incoming.forEach(j => {
     const k = `${j.employer}|${j.title}|${j.deadline}`
-    if (em[j.id]) up.push(j)
-    else if (ek.has(k)) sk.push(j)
-    else nw.push(j)
+    const match = em[k]
+    if (match) {
+      up.push({ ...j, id: match.id, _supabase_id: match._supabase_id })
+    } else {
+      nw.push(j)
+    }
   })
   return (
     <div style={{
@@ -900,24 +901,37 @@ export default function Admin() {
         }
       }
 
-      // Auto-assign IDs to new jobs and INSERT into Supabase
+      // Auto-assign IDs from Supabase max to avoid stale local state
+      const { data: maxData } = await supabase
+        .from('jobs').select('display_id').order('id', { ascending: false }).limit(1)
       let maxNum = 0
-      jobs.forEach(j => { const m = j.id?.match(/(\d+)$/); if (m) maxNum = Math.max(maxNum, parseInt(m[1])) })
+      if (maxData && maxData[0]) {
+        const m = maxData[0].display_id?.match(/(\d+)$/)
+        if (m) maxNum = parseInt(m[1])
+      }
       const reNw = nw.map((j, i) => ({ ...j, id: 'myg_' + String(maxNum + 1 + i).padStart(3, '0'), status: 'draft' }))
 
-      const insertedNew = []
       for (const j of reNw) {
-        const { data, error } = await supabase.from('jobs').insert(toRow(j)).select().single()
+        const { error } = await supabase.from('jobs').insert(toRow(j))
         if (error) throw error
-        insertedNew.push({ ...j, _supabase_id: data.id })
       }
 
-      // Update local state
-      setJobs(prev => {
-        let r = [...prev]
-        up.forEach(u => { const i = r.findIndex(j => j.id === u.id); if (i >= 0) r[i] = u })
-        return [...r, ...insertedNew]
-      })
+      // Reload all jobs fresh from Supabase to avoid local state ID conflicts
+      const { data: fresh, error: fetchErr } = await supabase
+        .from('jobs').select('*').order('added_date', { ascending: false })
+      if (fetchErr) throw fetchErr
+      const mapped = (fresh || []).map(j => ({
+        id: j.display_id, _supabase_id: j.id, src: j.source, isNew: j.is_new,
+        open: j.status === 'published', status: j.status, deadline: j.deadline,
+        addedDate: j.added_date, title: j.title, employer: j.employer,
+        sector: j.sector, county: j.county, edu: j.edu_min, posts: j.posts,
+        grade: j.grade || '', ref: j.ref || '', flag: j.flag || '',
+        about: j.about, responsibilities: j.responsibilities || [],
+        requirements: j.requirements || [], howToApply: j.how_to_apply,
+        chapterSix: j.chapter_six, ai_summary: j.ai_summary || '',
+        ai_match_fields: j.ai_match_fields || {},
+      }))
+      setJobs(mapped)
       setImportData(null)
     } catch (err) {
       alert('Import failed: ' + err.message)
