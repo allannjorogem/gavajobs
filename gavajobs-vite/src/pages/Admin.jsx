@@ -187,22 +187,17 @@ function Field({ label, children, hint, required }) {
 }
 
 function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
-  // Match by employer+title+deadline, NOT by ID.
-  // IDs in the JSON are extractor placeholders — they must never clash with live DB IDs.
-  // An incoming job that matches an existing job's employer+title+deadline = UPDATE (carry over existing ID + _supabase_id).
-  // No match = NEW (admin auto-assigns ID from highest existing).
   const em = {}
-  existing.forEach(j => { em[`${j.employer}|${j.title}|${j.deadline}`] = j })
+  existing.forEach(j => { em[j.id] = j })
+  const ek = new Set(existing.map(j =>
+    `${j.employer}|${j.title}|${j.deadline}`
+  ))
   const nw = [], up = [], sk = []
   incoming.forEach(j => {
     const k = `${j.employer}|${j.title}|${j.deadline}`
-    const match = em[k]
-    if (match) {
-      // Carry over the existing ID and _supabase_id so the save does UPDATE not INSERT
-      up.push({ ...j, id: match.id, _supabase_id: match._supabase_id })
-    } else {
-      nw.push(j)
-    }
+    if (em[j.id]) up.push(j)
+    else if (ek.has(k)) sk.push(j)
+    else nw.push(j)
   })
   return (
     <div style={{
@@ -394,7 +389,7 @@ function JobEditor({ job, onSave, onCancel, onDelete, isNew, existingJobs }) {
           </Field>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"0 16px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"0 16px" }}>
           <Field label="Status">
             <select value={form.status || "draft"}
               onChange={e => set("status", e.target.value)} style={selS}>
@@ -416,13 +411,13 @@ function JobEditor({ job, onSave, onCancel, onDelete, isNew, existingJobs }) {
               {EDU_LEVELS.map(e => <option key={e}>{e}</option>)}
             </select>
           </Field>
-          <Field label="Flag" hint="Triggers Needs Review — describe what needs checking">
-            <textarea value={form.flag || ""}
-              onChange={e => set("flag", e.target.value)}
-              rows={3}
-              style={{...inputS, resize:"vertical", minHeight:60}} />
-          </Field>
         </div>
+        <Field label="Flag" hint="Triggers Needs Review — describe what needs checking">
+          <textarea value={form.flag || ""}
+            onChange={e => set("flag", e.target.value)}
+            rows={5}
+            style={{...inputS, resize:"vertical", minHeight:100}} />
+        </Field>
       </div>
 
       <div style={{
