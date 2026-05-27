@@ -321,7 +321,7 @@ function JobEditor({ job, onSave, onCancel, onDelete, isNew, existingJobs }) {
   }))
   const mf = form.ai_match_fields || {}
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isNew && existingJobs) {
       const dup = existingJobs.find(j =>
         j.employer === form.employer && j.title === form.title && j.deadline === form.deadline
