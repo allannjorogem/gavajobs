@@ -1229,12 +1229,12 @@ export default function Admin() {
       {importData && (
         <ImportPreview incoming={importData} existing={jobs}
           onConfirm={confirmImport} onCancel={() => setImportData(null)} />
-        {confirmModal && (
-          <ConfirmModal
-            message={confirmModal.message}
-            onConfirm={confirmModal.onConfirm}
-            onCancel={() => setConfirmModal(null)} />
-        )}
+      )}
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)} />
       )}
 
       <div style={{
