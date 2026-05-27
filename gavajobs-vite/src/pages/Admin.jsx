@@ -727,11 +727,14 @@ export default function Admin() {
     })
     if (changed) {
       setJobs(updated)
-      // Write expired isNew flags to Supabase
-      const expired = updated.filter(j => !j.isNew && jobs.find(o => o.id === j.id)?.isNew)
-      for (const j of expired) {
-        if (j._supabase_id) await supabase.from('jobs').update({ is_new: false }).eq('id', j._supabase_id)
+      // Write expired isNew flags to Supabase (async, fire and forget)
+      const expireInDb = async () => {
+        const expired = updated.filter(j => !j.isNew && jobs.find(o => o.id === j.id)?.isNew)
+        for (const j of expired) {
+          if (j._supabase_id) await supabase.from('jobs').update({ is_new: false }).eq('id', j._supabase_id)
+        }
       }
+      expireInDb()
     }
   }, [])
 
