@@ -188,6 +188,8 @@ export default function App() {
   }, [])
 
   const openJobs = useMemo(() => filtered.filter(j => isJobOpen(j)), [filtered, isJobOpen])
+  // All open jobs regardless of current filter — used for closing soon widget
+  const allOpenJobs = useMemo(() => jobs.filter(j => isJobOpen(j)), [jobs, isJobOpen])
   const closedJobs = useMemo(() => filtered.filter(j => !isJobOpen(j)), [filtered, isJobOpen])
   
   const [showWrongField, setShowWrongField] = useState(false)
@@ -370,14 +372,14 @@ export default function App() {
         </div>
 
         <div className="detail-col" style={{ flex:1, minWidth:0, padding:"0 28px", display:"none" }}>
-          <Detail job={selected} saved={saved} onSave={toggleSave} onClose={() => setSelected(null)} profile={profile} onBuildProfile={() => setShowProfileBuilder(true)} getMatch={getMatch} onSelect={select} followedEmps={followedEmps} onToggleFollow={toggleFollow} premium={premium} onUnlockPremium={() => setPremium(true)}/>
+          <Detail job={selected} saved={saved} onSave={toggleSave} onClose={() => setSelected(null)} profile={profile} onBuildProfile={() => setShowProfileBuilder(true)} getMatch={getMatch} onSelect={select} followedEmps={followedEmps} onToggleFollow={toggleFollow} premium={premium} onUnlockPremium={() => setPremium(true)} allOpenJobs={allOpenJobs}/>
         </div>
       </div>
 
       {mobOpen && selected && (
         <div onClick={() => setMobOpen(false)} className="mob-sheet" style={{ display:"none", position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,.45)" }}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:0, left:0, right:0, height:"92vh", borderRadius:"18px 18px 0 0", background:C.white, padding:"18px 16px 0", overflowY:"auto", animation:"slideUp .25s ease" }}>
-            <Detail job={selected} saved={saved} onSave={toggleSave} onClose={() => setMobOpen(false)} profile={profile} onBuildProfile={() => setShowProfileBuilder(true)} getMatch={getMatch} onSelect={select} followedEmps={followedEmps} onToggleFollow={toggleFollow} premium={premium} onUnlockPremium={() => setPremium(true)}/>
+            <Detail job={selected} saved={saved} onSave={toggleSave} onClose={() => setMobOpen(false)} profile={profile} onBuildProfile={() => setShowProfileBuilder(true)} getMatch={getMatch} onSelect={select} followedEmps={followedEmps} onToggleFollow={toggleFollow} premium={premium} onUnlockPremium={() => setPremium(true)} allOpenJobs={allOpenJobs}/>
           </div>
         </div>
       )}
