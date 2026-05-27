@@ -141,9 +141,15 @@ export function computeMatch(profile, jobFields) {
         continue
       }
       
-      // If user doesn't hold this education level, field match is irrelevant
+      // If user doesn't hold this education level, field match is irrelevant for scoring
+      // BUT we still check the field to avoid a false wrongField flag — the education gap
+      // is already penalised by underqualifiedFlag; if the field itself is right, don't
+      // double-penalise with a wrongField cap on top.
       const holdsLevel = (lc.lv === "PhD" && userEduRank >= 5) || (lc.lv === "Masters" && userEduRank >= 4) || ((lc.lv === "Bachelors" || lc.lv === "Degree") && userEduRank >= 3) || (lc.lv === "Diploma" && userEduRank >= 2) || (lc.lv === "Certificate" && userEduRank >= 1) || (lc.lv === "KCSE" && userEduRank >= 0)
       if (!holdsLevel) {
+        // Still run a field match against all user fields to decide wrongField correctly
+        const fieldMatchResult = tryMatch(allUserFields, lc.jf)
+        if (fieldMatchResult.tier !== "none") anyFieldMatch = true
         checks.push({ label: lc.lv + " in " + fDisp, met: false, category: "field", weight: lc.w, maxWeight: lc.w,
           note: "You do not hold a " + lc.lv + ". Your " + (profile.education||"qualification") + " in " + (profile.study_fields||[]).join(", ") + " is below this level." })
         continue
