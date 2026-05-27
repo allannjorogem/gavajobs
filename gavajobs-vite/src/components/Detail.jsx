@@ -6,7 +6,7 @@ import { matchColor, matchLabel, dl, ini, waShare } from '../utils/helpers'
 import { PROF_QUALS } from '../constants/profQuals'
 import { PROF_BODIES } from '../constants/profBodies'
 
-export default function Detail({ job, saved, onSave, onClose, profile, onBuildProfile, getMatch, onSelect, followedEmps, onToggleFollow, premium, onUnlockPremium }) {
+export default function Detail({ job, saved, onSave, onClose, profile, onBuildProfile, getMatch, onSelect, followedEmps, onToggleFollow, premium, onUnlockPremium, allOpenJobs }) {
   const ref = useRef(null)
   const [showPayment, setShowPayment] = useState(false)
   const [phone, setPhone] = useState("")
@@ -56,6 +56,32 @@ export default function Detail({ job, saved, onSave, onClose, profile, onBuildPr
             </div>
           ))}
         </div>
+
+        {/* Closing soon */}
+        {allOpenJobs && allOpenJobs.filter(j => { const d = dl(j.deadline); return !d.closed && d.daysLeft >= 0 && d.daysLeft <= 7 }).length > 0 && (
+          <div style={{ padding:"0 24px 28px" }}>
+            <p style={{ fontSize:11, fontWeight:700, color:C.text3, textTransform:"uppercase", letterSpacing:".05em", marginBottom:12 }}>⏰ Closing soon</p>
+            {allOpenJobs
+              .filter(j => { const d = dl(j.deadline); return !d.closed && d.daysLeft >= 0 && d.daysLeft <= 7 })
+              .sort((a,b) => new Date(a.deadline) - new Date(b.deadline))
+              .map(j => {
+                const d = dl(j.deadline)
+                return (
+                  <div key={j.id} onClick={() => onSelect && onSelect(j)}
+                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                      padding:"10px 14px", borderRadius:10, background:C.bg, border:`1px solid ${C.border}`,
+                      marginBottom:8, cursor:"pointer" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:2 }}>{j.title}</div>
+                      <div style={{ fontSize:11, color:C.text3 }}>{j.employer}</div>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:d.daysLeft <= 3 ? C.red : C.amber, flexShrink:0, marginLeft:12 }}>{d.text}</span>
+                  </div>
+                )
+              })
+            }
+          </div>
+        )}
 
       </div>
     )
