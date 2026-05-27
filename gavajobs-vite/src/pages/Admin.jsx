@@ -861,19 +861,63 @@ export default function Admin() {
     inp.click()
   }
 
-  const confirmImport = (nw, up) => {
-    setJobs(prev => {
-      let r = [...prev]
-      up.forEach(u => {
-        const i = r.findIndex(j => j.id === u.id)
-        if (i >= 0) r[i] = u
-      })
+  const toRow = (job) => ({
+    display_id: job.id,
+    source: job.src || 'MyGov',
+    is_new: job.isNew !== false,
+    status: job.status || 'draft',
+    deadline: job.deadline,
+    added_date: job.addedDate || new Date().toISOString().split('T')[0],
+    title: job.title,
+    employer: job.employer,
+    sector: job.sector || 'Other',
+    county: job.county || 'Nairobi',
+    edu_min: job.edu || 'Degree',
+    posts: job.posts || 1,
+    grade: job.grade || '',
+    ref: job.ref || '',
+    flag: job.flag || '',
+    about: job.about || '',
+    responsibilities: job.responsibilities || [],
+    requirements: job.requirements || [],
+    how_to_apply: job.howToApply || '',
+    chapter_six: job.chapterSix !== false,
+    ai_summary: job.ai_summary || '',
+    ai_match_fields: job.ai_match_fields || {},
+  })
+
+  const confirmImport = async (nw, up) => {
+    try {
+      // UPDATE existing jobs in Supabase
+      for (const u of up) {
+        if (u._supabase_id) {
+          const { error } = await supabase.from('jobs').update(toRow(u)).eq('id', u._supabase_id)
+          if (error) throw error
+        }
+      }
+
+      // Auto-assign IDs to new jobs and INSERT into Supabase
       let maxNum = 0
-      r.forEach(j => { const m = j.id?.match(/(\d+)$/); if (m) maxNum = Math.max(maxNum, parseInt(m[1])) })
-      const reNw = nw.map((j, i) => ({ ...j, id: "myg_" + String(maxNum + 1 + i).padStart(3, "0"), status: "draft" }))
-      return [...r, ...reNw]
-    })
-    setImportData(null)
+      jobs.forEach(j => { const m = j.id?.match(/(\d+)$/); if (m) maxNum = Math.max(maxNum, parseInt(m[1])) })
+      const reNw = nw.map((j, i) => ({ ...j, id: 'myg_' + String(maxNum + 1 + i).padStart(3, '0'), status: 'draft' }))
+
+      const insertedNew = []
+      for (const j of reNw) {
+        const { data, error } = await supabase.from('jobs').insert(toRow(j)).select().single()
+        if (error) throw error
+        insertedNew.push({ ...j, _supabase_id: data.id })
+      }
+
+      // Update local state
+      setJobs(prev => {
+        let r = [...prev]
+        up.forEach(u => { const i = r.findIndex(j => j.id === u.id); if (i >= 0) r[i] = u })
+        return [...r, ...insertedNew]
+      })
+      setImportData(null)
+    } catch (err) {
+      alert('Import failed: ' + err.message)
+    }
   }
 
   const nextId = useMemo(() => {
