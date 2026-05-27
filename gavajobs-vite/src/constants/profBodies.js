@@ -1,4 +1,4 @@
-// Professional bodies — 27 entries
+// Professional bodies — 36 entries
 export const PROF_BODIES = [
   { id:"acca", label:"ACCA (Association of Chartered Certified Accountants)", category:"Accounting" },
   { id:"boraqs", label:"BORAQS (Board of Registration of Architects & QS)", category:"Engineering" },
@@ -27,4 +27,12 @@ export const PROF_BODIES = [
   { id:"ppb", label:"PPB (Pharmacy & Poisons Board)", category:"Health" },
   { id:"prsk", label:"PRSK (Public Relations Society of Kenya)", category:"Communications" },
   { id:"tsc", label:"TSC (Teachers Service Commission)", category:"Education" },
+  { id:"aak", label:"AAK (Architectural Association of Kenya)", category:"Engineering" },
+  { id:"iqsk", label:"IQSK (Institute of Quantity Surveyors of Kenya)", category:"Engineering" },
+  { id:"ispak", label:"ISPAK (Institute of Secretaries and Public Administrators of Kenya)", category:"Admin" },
+  { id:"iik", label:"IIK (Insurance Institute of Kenya)", category:"Insurance" },
+  { id:"actuarial_society_ke", label:"Actuarial Society of Kenya", category:"Finance" },
+  { id:"statistical_society_ke", label:"Statistical Society of Kenya", category:"Research" },
+  { id:"geological_society_ke", label:"Geological Society of Kenya", category:"Engineering" },
+  { id:"geological_board_ke", label:"Geological Board of Kenya", category:"Engineering" },
 ]

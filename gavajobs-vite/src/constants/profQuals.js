@@ -1,4 +1,4 @@
-// Professional qualifications — 30 entries
+// Professional qualifications — 43 entries
 export const PROF_QUALS = [
   { id:"acca", label:"ACCA", category:"Accounting" },
   { id:"advocate", label:"Advocate of the High Court", category:"Legal" },
@@ -27,7 +27,19 @@ export const PROF_QUALS = [
   { id:"azure", label:"Microsoft Azure Certification", category:"ICT" },
   { id:"pmp", label:"PMP (Project Management Professional)", category:"Management" },
   { id:"pgdl", label:"Post Graduate Diploma in Law (KSL)", category:"Legal" },
-  { id:"pgdhrm", label:"PGDHRM (Post Graduate Diploma in Human Resource Management)", category:"HR" },
+  { id:"pgdhrm", label:"PGDHRM (Post Graduate Diploma in HRM)", category:"HR" },
   { id:"prince2", label:"PRINCE2", category:"Management" },
   { id:"supplies_licence", label:"Supplies Practitioner's Licence (KISM)", category:"Supply Chain" },
+  { id:"acii", label:"ACII (Associate in Insurance — London)", category:"Insurance" },
+  { id:"aiik", label:"AIIK (Associate of Insurance Institute of Kenya)", category:"Insurance" },
+  { id:"iik_diploma", label:"IIK Diploma in Insurance (Kenya)", category:"Insurance" },
+  { id:"cissp", label:"CISSP (Certified Information Systems Security Professional)", category:"ICT" },
+  { id:"mcse", label:"MCSE (Microsoft Certified Systems Engineer)", category:"ICT" },
+  { id:"pgde", label:"PGDE (Post Graduate Diploma in Education)", category:"Education" },
+  { id:"crmp", label:"CRMP (Certified Risk Management Professional)", category:"Risk" },
+  { id:"frm", label:"FRM (Financial Risk Manager)", category:"Risk" },
+  { id:"prm", label:"PRM (Professional Risk Manager)", category:"Risk" },
+  { id:"iso_31000", label:"ISO 31000 (Risk Management Certification)", category:"Risk" },
+  { id:"iso_37301", label:"ISO 37301 (Compliance Management Certification)", category:"Risk" },
+  { id:"ifo_a", label:"IFoA (Institute and Faculty of Actuaries)", category:"Finance" },
 ]
