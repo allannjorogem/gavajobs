@@ -187,17 +187,22 @@ function Field({ label, children, hint, required }) {
 }
 
 function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
+  // Match by employer+title+deadline, NOT by ID.
+  // IDs in the JSON are extractor placeholders — they must never clash with live DB IDs.
+  // An incoming job that matches an existing job's employer+title+deadline = UPDATE (carry over existing ID + _supabase_id).
+  // No match = NEW (admin auto-assigns ID from highest existing).
   const em = {}
-  existing.forEach(j => { em[j.id] = j })
-  const ek = new Set(existing.map(j =>
-    `${j.employer}|${j.title}|${j.deadline}`
-  ))
-  const nw = [], up = [], sk = []
+  existing.forEach(j => { em[`${j.employer}|${j.title}|${j.deadline}`] = j })
+  const nw = [], up = []
   incoming.forEach(j => {
     const k = `${j.employer}|${j.title}|${j.deadline}`
-    if (em[j.id]) up.push(j)
-    else if (ek.has(k)) sk.push(j)
-    else nw.push(j)
+    const match = em[k]
+    if (match) {
+      // Carry over the existing ID and _supabase_id so the save does UPDATE not INSERT
+      up.push({ ...j, id: match.id, _supabase_id: match._supabase_id })
+    } else {
+      nw.push(j)
+    }
   })
   return (
     <div style={{
