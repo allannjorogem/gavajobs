@@ -186,6 +186,34 @@ function Field({ label, children, hint, required }) {
   )
 }
 
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(0,0,0,.7)",
+      display:"flex", alignItems:"center", justifyContent:"center", zIndex:200
+    }}>
+      <div style={{
+        background:P.surface, border:`1px solid ${P.border}`, borderRadius:14,
+        padding:"28px 32px", width:420, textAlign:"center"
+      }}>
+        <div style={{ fontSize:14, color:P.text, marginBottom:24, lineHeight:1.6 }}>{message}</div>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          <button onClick={onCancel}
+            style={{ padding:"8px 24px", borderRadius:8, border:`1px solid ${P.border}`,
+              background:"transparent", color:P.text2, cursor:"pointer", fontSize:13 }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm}
+            style={{ padding:"8px 24px", borderRadius:8, border:"none",
+              background:P.red, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
   // Match by employer+title+deadline — NOT by ID.
   const em = {}
@@ -298,9 +326,16 @@ function JobEditor({ job, onSave, onCancel, onDelete, isNew, existingJobs }) {
       const dup = existingJobs.find(j =>
         j.employer === form.employer && j.title === form.title && j.deadline === form.deadline
       )
-      if (dup && !safeConfirm(
-        `A job with this employer, title, and deadline already exists (ID: ${dup.id}). Save anyway?`
-      )) return
+      if (dup) {
+        const proceed = await new Promise(resolve => {
+          setConfirmModal({
+            message: `A job with this employer, title, and deadline already exists (ID: ${dup.id}). Save anyway?`,
+            onConfirm: () => { setConfirmModal(null); resolve(true) },
+            onCancel: () => { setConfirmModal(null); resolve(false) }
+          })
+        })
+        if (!proceed) return
+      }
     }
     onSave(form)
   }
@@ -635,6 +670,7 @@ export default function Admin() {
   const [showUnenriched, setShowUnenriched] = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [importData, setImportData] = useState(null)
+  const [confirmModal, setConfirmModal] = useState(null) // { message, onConfirm }
 
   // Load from Supabase
   useEffect(() => {
@@ -819,22 +855,28 @@ export default function Admin() {
     }
   }
 
-  const deleteJob = async (id) => {
+  const deleteJob = (id) => {
     const job = jobs.find(j => j.id === id)
-    if (job?._supabase_id) {
-      const { error } = await supabase.from('jobs').delete().eq('id', job._supabase_id)
-      if (error) { alert('Failed to delete: ' + error.message); return }
-    }
-    setJobs(prev => prev.filter(j => j.id !== id))
-    setView("list"); setEditJob(null)
+    setConfirmModal({
+      message: `Delete "${job?.title}"? This cannot be undone.`,
+      onConfirm: async () => {
+        if (job?._supabase_id) {
+          const { error } = await supabase.from('jobs').delete().eq('id', job._supabase_id)
+          if (error) { alert('Failed to delete: ' + error.message); setConfirmModal(null); return }
+        }
+        setJobs(prev => prev.filter(j => j.id !== id))
+        setView("list"); setEditJob(null)
+        setConfirmModal(null)
+      }
+    })
   }
 
   const purgeAll = async () => {
-    if (safeConfirm("Delete ALL jobs from the database? This cannot be undone.")) {
-      const { error } = await supabase.from('jobs').delete().neq('id', 0)
-      if (error) { alert('Failed to purge: ' + error.message); return }
-      setJobs([]); setSelected(new Set())
-    }
+    const typed = window.prompt('This will permanently delete ALL jobs from the database.\n\nType DELETE to confirm:')
+    if (typed !== 'DELETE') { if (typed !== null) alert('Purge cancelled — you must type DELETE exactly.'); return }
+    const { error } = await supabase.from('jobs').delete().neq('id', 0)
+    if (error) { alert('Failed to purge: ' + error.message); return }
+    setJobs([]); setSelected(new Set())
   }
 
   const exportJSON = (publishedOnly = false) => {
@@ -967,10 +1009,19 @@ export default function Admin() {
     setSelected(new Set())
   }
   const bulkDel = () => {
-    if (safeConfirm(`Delete ${selected.size} jobs?`)) {
-      setJobs(p => p.filter(j => !selected.has(j.id)))
-      setSelected(new Set())
-    }
+    setConfirmModal({
+      message: `Delete ${selected.size} job${selected.size > 1 ? 's' : ''}? This cannot be undone.`,
+      onConfirm: async () => {
+        const ids = [...selected]
+        for (const displayId of ids) {
+          const job = jobs.find(j => j.id === displayId)
+          if (job?._supabase_id) await supabase.from('jobs').delete().eq('id', job._supabase_id)
+        }
+        setJobs(p => p.filter(j => !selected.has(j.id)))
+        setSelected(new Set())
+        setConfirmModal(null)
+      }
+    })
   }
   const clearFilters = () => {
     setShowClosingSoon(false); setShowUnenriched(false)
@@ -1152,6 +1203,12 @@ export default function Admin() {
       {importData && (
         <ImportPreview incoming={importData} existing={jobs}
           onConfirm={confirmImport} onCancel={() => setImportData(null)} />
+        {confirmModal && (
+          <ConfirmModal
+            message={confirmModal.message}
+            onConfirm={confirmModal.onConfirm}
+            onCancel={() => setConfirmModal(null)} />
+        )}
       )}
 
       <div style={{
