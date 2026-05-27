@@ -188,12 +188,11 @@ export default function App() {
   }, [])
 
   const openJobs = useMemo(() => filtered.filter(j => isJobOpen(j)), [filtered, isJobOpen])
-  // All open jobs regardless of current filter — used for closing soon widget
   const allOpenJobs = useMemo(() => jobs.filter(j => isJobOpen(j)), [jobs, isJobOpen])
   const closedJobs = useMemo(() => filtered.filter(j => !isJobOpen(j)), [filtered, isJobOpen])
   
   const [showWrongField, setShowWrongField] = useState(false)
-  const [showUnderqualified, setShowUnderqualified] = useState(false)
+  const [showUnderqualified, setShowUnderqualified] = useState(true)
   const relevantJobs = useMemo(() => {
     if (!profile) return openJobs
     return openJobs.filter(j => {
@@ -213,7 +212,7 @@ export default function App() {
     if (!profile) return []
     return openJobs.filter(j => {
       const m = getMatch(j.id)
-      return m && m.score <= 15 && !m.wrongField
+      return m && m.score <= 15 && !m.wrongField && !m.overqualified
     })
   }, [openJobs, profile, getMatch])
   useEffect(() => { setVisibleCount(12) }, [sector, q, sortBy, showSaved, showMgmt])
@@ -335,21 +334,21 @@ export default function App() {
             </>
           )}
           
-          {!jobsLoading && !showSaved && wrongFieldJobs.length > 0 && (
-            <button onClick={() => setShowWrongField(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
-              <span>{showWrongField ? "▲ Hide" : "▼ Jobs outside your field"}</span>
-              <span style={{ fontSize:10, fontWeight:600, background:C.borderLight, padding:"1px 6px", borderRadius:8 }}>{wrongFieldJobs.length}</span>
-            </button>
-          )}
-          {showWrongField && wrongFieldJobs.map(j => <JobCard key={j.id} job={j} active={selected?.id===j.id} saved={saved} onSave={toggleSave} onSelect={select} match={getMatch(j.id)} followed={!!profile && followedEmps.includes(j.employer)}/>)}
-
           {!jobsLoading && !showSaved && underqualifiedJobs.length > 0 && (
             <button onClick={() => setShowUnderqualified(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
-              <span>{showUnderqualified ? "▲ Hide" : "▼ Jobs requiring higher education"}</span>
+              <span>{showUnderqualified ? "▲ Hide jobs requiring higher qualifications" : "▼ Jobs requiring higher qualifications"}</span>
               <span style={{ fontSize:10, fontWeight:600, background:C.borderLight, padding:"1px 6px", borderRadius:8 }}>{underqualifiedJobs.length}</span>
             </button>
           )}
           {showUnderqualified && underqualifiedJobs.map(j => <JobCard key={j.id} job={j} active={selected?.id===j.id} saved={saved} onSave={toggleSave} onSelect={select} match={getMatch(j.id)} followed={!!profile && followedEmps.includes(j.employer)}/>)}
+
+          {!jobsLoading && !showSaved && wrongFieldJobs.length > 0 && (
+            <button onClick={() => setShowWrongField(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
+              <span>{showWrongField ? "▲ Hide jobs outside your field" : "▼ Jobs outside your field"}</span>
+              <span style={{ fontSize:10, fontWeight:600, background:C.borderLight, padding:"1px 6px", borderRadius:8 }}>{wrongFieldJobs.length}</span>
+            </button>
+          )}
+          {showWrongField && wrongFieldJobs.map(j => <JobCard key={j.id} job={j} active={selected?.id===j.id} saved={saved} onSave={toggleSave} onSelect={select} match={getMatch(j.id)} followed={!!profile && followedEmps.includes(j.employer)}/>)}
           
           {!jobsLoading && !showSaved && (
             <button onClick={() => setShowClosed(p=>!p)} style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, width:"100%", background:"none", border:`1.5px dashed ${C.border}`, color:C.text3, fontSize:11, padding:9, borderRadius:8, cursor:"pointer", margin:"8px 0", fontFamily:"inherit" }}>
