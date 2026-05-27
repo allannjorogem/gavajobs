@@ -187,18 +187,17 @@ function Field({ label, children, hint, required }) {
 }
 
 function ImportPreview({ incoming, existing, onConfirm, onCancel }) {
-  // Match by employer+title+deadline — NOT by ID.
   const em = {}
-  existing.forEach(j => { em[`${j.employer}|${j.title}|${j.deadline}`] = j })
+  existing.forEach(j => { em[j.id] = j })
+  const ek = new Set(existing.map(j =>
+    `${j.employer}|${j.title}|${j.deadline}`
+  ))
   const nw = [], up = [], sk = []
   incoming.forEach(j => {
     const k = `${j.employer}|${j.title}|${j.deadline}`
-    const match = em[k]
-    if (match) {
-      up.push({ ...j, id: match.id, _supabase_id: match._supabase_id })
-    } else {
-      nw.push(j)
-    }
+    if (em[j.id]) up.push(j)
+    else if (ek.has(k)) sk.push(j)
+    else nw.push(j)
   })
   return (
     <div style={{
@@ -697,9 +696,13 @@ export default function Admin() {
     j => (j.status === "published" || (j.status === undefined && j.open)) && new Date(j.deadline + "T17:00:00+03:00") > now, []
   )
   const isDeg = j => (EDU_RANK[j.edu] || 0) >= EDU_RANK["Degree"]
+  // hasEmpty: flag as unenriched only if edu_fields is empty AND job has an unresolved flag
+  // Empty edu_fields with no flag = intentional open field (e.g. CEO roles, "any field accepted")
+  // Empty edu_fields with a flag = genuinely missing, needs admin attention
   const hasEmpty = j => isOpen(j) && isDeg(j) &&
     (!j.ai_match_fields?.edu_fields || j.ai_match_fields.edu_fields.length === 0) &&
-    (!j.ai_match_fields?.edu_fields_bachelors || j.ai_match_fields.edu_fields_bachelors.length === 0)
+    (!j.ai_match_fields?.edu_fields_bachelors || j.ai_match_fields.edu_fields_bachelors.length === 0) &&
+    (j.flag && j.flag.trim())
   const isUnresolved = j => hasEmpty(j) || (j.flag && j.flag.trim())
 
   const stats = useMemo(() => {
@@ -909,22 +912,12 @@ export default function Admin() {
         insertedNew.push({ ...j, _supabase_id: data.id })
       }
 
-      // Reload all jobs fresh from Supabase to avoid local state ID conflicts
-      const { data: fresh, error: fetchErr } = await supabase
-        .from('jobs').select('*').order('added_date', { ascending: false })
-      if (fetchErr) throw fetchErr
-      const mapped = (fresh || []).map(j => ({
-        id: j.display_id, _supabase_id: j.id, src: j.source, isNew: j.is_new,
-        open: j.status === 'published', status: j.status, deadline: j.deadline,
-        addedDate: j.added_date, title: j.title, employer: j.employer,
-        sector: j.sector, county: j.county, edu: j.edu_min, posts: j.posts,
-        grade: j.grade || '', ref: j.ref || '', flag: j.flag || '',
-        about: j.about, responsibilities: j.responsibilities || [],
-        requirements: j.requirements || [], howToApply: j.how_to_apply,
-        chapterSix: j.chapter_six, ai_summary: j.ai_summary || '',
-        ai_match_fields: j.ai_match_fields || {},
-      }))
-      setJobs(mapped)
+      // Update local state
+      setJobs(prev => {
+        let r = [...prev]
+        up.forEach(u => { const i = r.findIndex(j => j.id === u.id); if (i >= 0) r[i] = u })
+        return [...r, ...insertedNew]
+      })
       setImportData(null)
     } catch (err) {
       alert('Import failed: ' + err.message)
