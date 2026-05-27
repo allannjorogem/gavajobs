@@ -69,7 +69,9 @@ export default function Detail({ job, saved, onSave, onClose, profile, onBuildPr
                 return (
                   <div key={j.id} onClick={() => onSelect && onSelect(j)}
                     style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
-                      padding:"10px 14px", borderRadius:10, background:C.bg, border:`1px solid ${C.border}`,
+                      padding:"10px 14px", borderRadius:10,
+                      background: d.daysLeft <= 3 ? "#FEF1F1" : "#FFF9EB",
+                      border: `1px solid ${d.daysLeft <= 3 ? "#FECACA" : "#FDE68A"}`,
                       marginBottom:8, cursor:"pointer" }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:2 }}>{j.title}</div>
